@@ -3,12 +3,21 @@
  */
 package gov.ornl.cda.orca.pcap;
 
+import gov.ornl.cda.orca.pcap.processors.CapInfosProcessor;
+import gov.ornl.cda.orca.pcap.processors.TcpDumpProcessor;
+import gov.ornl.cda.orca.pcap.utils.IpCountComparator;
+
 import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.apache.commons.lang3.SystemUtils;
-import org.apache.log4j.ConsoleAppender;
-import org.apache.log4j.EnhancedPatternLayout;
-import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
@@ -30,33 +39,131 @@ public class AttackProjector {
 	private String tcpdumpPath = "/usr/sbin/tcpdump";
 	private String tsharkPath = "/usr/sbin/tshark";
 	private String windumpPath = "C:\\program files\\wireshark\\windump.exe";
+	
+	private String sourcePcapPath = "";
+	private String targetPcapPath = "";
+	private String outputPcapPath = "";
+	
+	private ExecutorService executor = Executors.newFixedThreadPool(10);
+	
+	public void cleanUp() {
+		executor.shutdownNow();
+	}
+		
+    public PcapData getPcapDetails(String filePath) {
 
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
+    	List<String> details = new ArrayList<String>();
+
+    	CapInfosProcessor processor = new CapInfosProcessor(this.capinfosPath, filePath);
+    	
+    	Future<List<String>> pendingDetails = executor.submit(processor);
+
+    	while (!pendingDetails.isDone()) {
+    		try {
+    			logger.info("Processing...");
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				logger.error(e.getMessage());
+			}
+    	}
+
+		try {
+			details = pendingDetails.get();
+		} catch (InterruptedException e) {
+			logger.error(e.getMessage());
+		} catch (ExecutionException e) {
+			logger.error(e.getMessage());
+		}
+
+		processor.stop();
+		PcapData data = new PcapData(details);
+		return data;		
+	}
+    
+    public HashMap<String, Integer> getFileTopTalkers(String filePath, int maxValues) {
+    	List<String> details = new ArrayList<String>();
+
+    	TcpDumpProcessor processor = new TcpDumpProcessor(
+    			(SystemUtils.IS_OS_WINDOWS ? this.windumpPath : this.tcpdumpPath), filePath);
+    	
+    	Future<List<String>> pendingDetails = executor.submit(processor);
+
+    	while (!pendingDetails.isDone()) {
+    		try {
+    			logger.info("Reading File...");
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				logger.error(e.getMessage());
+			}
+    	}
+
+		try {
+			details = pendingDetails.get();
+		} catch (InterruptedException e) {
+			logger.error(e.getMessage());
+		} catch (ExecutionException e) {
+			logger.error(e.getMessage());
+		}
+
+		processor.stop();
 		
-		initLogger();
-		logger.info("CDA Attack Sample Generator");
-		
-		// set up a timer for the entire app
-		final long startTime = System.currentTimeMillis();
-		
-		// TODO: Do the work
-		if (verifyTools()) {
-			// let's do something interesting
-		} else {
-			logger.error("We are missing the requried tools. Existing now.");
+		logger.info("Finished the list from the file...");
+		// now we need to...
+		// 1. get the list into just the sending IPs
+		// 2. sort the list by IP
+		// 3. get a list of unique IPs and the counts
+		// IP 10.78.26.47.25882 > 10.78.12.45.49229: Flags [P.], seq 1:2, 
+
+		HashMap<String, Integer> ips = new HashMap<String, Integer>();
+
+		for (String line : details) {
+			try {
+				String ip = line.split(" ")[1].trim();
+				ip = ip.substring(0, ip.lastIndexOf('.'));
+				
+				if (ips.containsKey(ip)) {
+					ips.put(ip, ips.get(ip) + 1);
+				} else {
+					ips.put(ip, 1);
+				}
+			} catch (StringIndexOutOfBoundsException e) {
+				// squash
+			}
 		}
 		
-		// finish our timer
-		final long endTime = System.currentTimeMillis();
+		// 4. sort that list numerically
+		IpCountComparator bvc =  new IpCountComparator(ips);
+        TreeMap<String,Integer> sortedIps = new TreeMap<String,Integer>(bvc);
+        sortedIps.putAll(ips);
 		
-		// indicate we are finished
-		logger.info("Total execution time: " + ((endTime - startTime)/1000F) + " seconds.");
-		logger.info("Operation Complete");
-	}
-	
+        HashMap<String, Integer> topTalkers = new HashMap<String, Integer>(10);
+        
+        // 5. get the top 10 items
+		if (sortedIps.size() > maxValues) {
+			int i = 0;
+			for (String key : sortedIps.keySet()) {
+				topTalkers.put(key,  sortedIps.get(key));
+				i++;
+				if (i <= maxValues) {
+					break;
+				}
+			}
+		} else {
+			topTalkers.putAll(sortedIps);
+		}        
+		
+		return topTalkers;    	
+    }
+		
+    public Boolean ensureTargetLongerThanSource(PcapData sourceData, PcapData targetData) {
+	    if (targetData.getCaptureDuration() < sourceData.getCaptureDuration()) {
+	    	return true;	    	
+	    } else {
+	    	return false;
+	    }
+    }
+    
+    
 	private static Boolean verifyTool(String filePath, String toolName) {
 		if (!(new File(filePath)).exists()) {
 			logger.error(String.format("Tool Missing: %s was not present at the expected location", toolName));
@@ -66,10 +173,10 @@ public class AttackProjector {
 		}
 	}
 	
-	private Boolean verifyTools() {
+	public Boolean verifyTools() {
 		Boolean allGood = true;
 		
-		allGood = (verifyTool(getEditcapPath(), "editcap")) ? allGood : false;
+		allGood = (verifyTool(editcapPath, "editcap")) ? allGood : false;
 		allGood = (verifyTool(bittwistePath, "bittwiste")) ? allGood : false; 
 		allGood = (verifyTool(mergecapPath, "mergecap")) ? allGood : false;
 		allGood = (verifyTool(capinfosPath, "capinfos")) ? allGood : false;
@@ -85,16 +192,6 @@ public class AttackProjector {
 		return allGood;
 	}
 	
-	private static void initLogger() {
-		ConsoleAppender console = new ConsoleAppender();
-		String PATTERN = "%d{ISO8601} %-5p  - %-10.26c{1}  - %m%n";
-		console.setLayout(new EnhancedPatternLayout(PATTERN));
-		console.setThreshold(Level.INFO);
-		console.activateOptions();
-		
-		Logger.getRootLogger().addAppender(console);
-	}
-
 	/**
 	 * @return the editcapPath
 	 */
@@ -191,5 +288,47 @@ public class AttackProjector {
 	 */
 	public void setWindumpPath(String windumpPath) {
 		this.windumpPath = windumpPath;
+	}
+
+	/**
+	 * @return the sourcePcapPath
+	 */
+	public String getSourcePcapPath() {
+		return sourcePcapPath;
+	}
+
+	/**
+	 * @param sourcePcapPath the sourcePcapPath to set
+	 */
+	public void setSourcePcapPath(String sourcePcapPath) {
+		this.sourcePcapPath = sourcePcapPath;
+	}
+
+	/**
+	 * @return the targetPcapPath
+	 */
+	public String getTargetPcapPath() {
+		return targetPcapPath;
+	}
+
+	/**
+	 * @param targetPcapPath the targetPcapPath to set
+	 */
+	public void setTargetPcapPath(String targetPcapPath) {
+		this.targetPcapPath = targetPcapPath;
+	}
+
+	/**
+	 * @return the outputPcapPath
+	 */
+	public String getOutputPcapPath() {
+		return outputPcapPath;
+	}
+
+	/**
+	 * @param outputPcapPath the outputPcapPath to set
+	 */
+	public void setOutputPcapPath(String outputPcapPath) {
+		this.outputPcapPath = outputPcapPath;
 	}
 }

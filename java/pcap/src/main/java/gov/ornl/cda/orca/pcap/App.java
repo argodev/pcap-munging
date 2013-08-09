@@ -2,6 +2,8 @@ package gov.ornl.cda.orca.pcap;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.EnhancedPatternLayout;
@@ -87,12 +89,17 @@ public class App
             // prompt the user for the victim IP from the source file (show IPs?)
             // - get and store both the IP and the MAC addr for the original victim
             logger.info("Determining top talkers in source file (this may take awhile)...");
-            HashMap<String, Integer> talkers = projector.getFileTopTalkers(projector.getSourcePcapPath(), 10);
+            List<IpCountData> talkers = projector.getFileTopTalkers(projector.getSourcePcapPath(), 10);
             
             logger.info("Top Talkers for source file: ");
-            for (String key : talkers.keySet()) {
-            	logger.info(key + "  (" + talkers.get(key) + ")");
+            for (IpCountData entry : talkers) {
+            	logger.info(entry.toString());
             }
+            
+            
+//            for (String key : talkers.keySet()) {
+//            	logger.info(key + "  (" + talkers.get(key) + ")");
+//            }
             
             talkers.clear();
             talkers = null;
@@ -116,12 +123,17 @@ public class App
             // prompt the user for the victim IP from the target data file (show IPs?)
             // - get and store both the IP and the MAC addr for the new victim
             logger.info("Determining top talkers in target file (this may take awhile)...");
-            HashMap<String, Integer> targetTalkers = projector.getFileTopTalkers(projector.getTargetPcapPath(), 10);
+            List<IpCountData> targetTalkers = projector.getFileTopTalkers(projector.getTargetPcapPath(), 10);
             
             logger.info("Top Talkers for target file: ");
-            for (String key : targetTalkers.keySet()) {
-            	logger.info(key + "  (" + targetTalkers.get(key) + ")");
+            for (IpCountData entry : targetTalkers) {
+            	logger.info(entry.toString());
             }
+            
+            
+//            for (String key : targetTalkers.keySet()) {
+//            	logger.info(key + "  (" + targetTalkers.get(key) + ")");
+//            }
 
             targetTalkers.clear();
             targetTalkers = null;

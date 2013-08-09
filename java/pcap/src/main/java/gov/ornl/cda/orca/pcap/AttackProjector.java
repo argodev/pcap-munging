@@ -11,6 +11,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -80,7 +81,7 @@ public class AttackProjector {
 		return data;		
 	}
     
-    public HashMap<String, Integer> getFileTopTalkers(String filePath, int maxValues) {
+    public List<IpCountData> getFileTopTalkers(String filePath, int maxValues) {
     	List<String> details = new ArrayList<String>();
 
     	TcpDumpProcessor processor = new TcpDumpProcessor(
@@ -114,6 +115,7 @@ public class AttackProjector {
 		// 3. get a list of unique IPs and the counts
 		// IP 10.78.26.47.25882 > 10.78.12.45.49229: Flags [P.], seq 1:2, 
 
+		logger.info("Identifying distinct IPs and counts...");
 		HashMap<String, Integer> ips = new HashMap<String, Integer>();
 
 		for (String line : details) {
@@ -131,26 +133,43 @@ public class AttackProjector {
 			}
 		}
 		
+		// explicitly clean up
+		details.clear();
+		details = null;
+		
 		// 4. sort that list numerically
+		logger.info("Sorting results...");
 		IpCountComparator bvc =  new IpCountComparator(ips);
         TreeMap<String,Integer> sortedIps = new TreeMap<String,Integer>(bvc);
         sortedIps.putAll(ips);
-		
-        HashMap<String, Integer> topTalkers = new HashMap<String, Integer>(10);
+        //sortedIps.
+
+        // explicitly clean up
+        ips.clear();
+        ips = null;
         
         // 5. get the top 10 items
-		if (sortedIps.size() > maxValues) {
-			int i = 0;
-			for (String key : sortedIps.keySet()) {
-				topTalkers.put(key,  sortedIps.get(key));
-				i++;
-				if (i <= maxValues) {
-					break;
-				}
-			}
+        logger.info("Filtering list to top " + maxValues);
+        List<IpCountData> topTalkers = new ArrayList<IpCountData>();
+
+        if (sortedIps.size() > maxValues) {
+			
+			for (int i = 0; i < maxValues; i++) {
+				Map.Entry<String, Integer> entry = sortedIps.pollFirstEntry();
+				topTalkers.add(new IpCountData(entry.getKey(), entry.getValue()));
+			}			
 		} else {
-			topTalkers.putAll(sortedIps);
-		}        
+			//topTalkers.putAll(sortedIps.descendingMap());
+			int listSize = sortedIps.size();
+			for (int i = 0; i < listSize; i++) {
+				Map.Entry<String, Integer> entry = sortedIps.pollFirstEntry();
+				topTalkers.add(new IpCountData(entry.getKey(), entry.getValue()));
+			}			
+		}
+		
+		// explicitly clean up
+		sortedIps.clear();
+		sortedIps = null;
 		
 		return topTalkers;    	
     }

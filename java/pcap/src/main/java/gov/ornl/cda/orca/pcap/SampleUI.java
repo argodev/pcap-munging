@@ -34,6 +34,7 @@ public class SampleUI {
 	static Logger logger = LogManager.getLogger(AttackProjector.class.getName());
 
 	protected Shell shell;
+	private static AttackProjector projector = null;;
 	
 	private static Text sourceFilePath;
 	private static Text targetFilePath;
@@ -66,16 +67,22 @@ public class SampleUI {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-				
-		// setup the projector engine
-        AttackProjector projector = new AttackProjector();
-
-        
-        
+	}
+	
+	/**
+	 * Open the window.
+	 */
+	public void open() {
 		Display display = Display.getDefault();
-
+		createContents();
+		shell.open();
+		shell.layout();
 		
+		initLogger();
+		logger.info("hello from the UI!");
 		
+		// setup the projector engine
+        projector = new AttackProjector();
         
         if (SystemUtils.IS_OS_WINDOWS) {
         	projector.setEditcapPath(winEditCapPath.getText());
@@ -92,26 +99,15 @@ public class SampleUI {
         	projector.setTcpdumpPath(linuxTcpDumpPath.getText());
         	projector.setTsharkPath(linuxTsharkPath.getText());
         }
-	}
-	
-	/**
-	 * Open the window.
-	 */
-	public void open() {
-		Display display = Display.getDefault();
-		createContents();
-		shell.open();
-		shell.layout();
-		
-		initLogger();
-		logger.info("hello from the UI!");
-
 		
 		while (!shell.isDisposed()) {
 			if (!display.readAndDispatch()) {
 				display.sleep();
 			}
 		}
+		
+		projector.cleanUp();
+        projector = null;
 	}
 	
 	/**

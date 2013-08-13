@@ -1,5 +1,8 @@
 package gov.ornl.cda.orca.pcap;
 
+import java.io.File;
+import java.util.List;
+
 import gov.ornl.cda.orca.pcap.utils.TextBoxAppender;
 
 import org.apache.commons.lang3.SystemUtils;
@@ -21,12 +24,12 @@ import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.widgets.TabFolder;
-import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.wb.swt.SWTResourceManager;
+import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.ModifyEvent;
 
 public class SampleUI {
 
@@ -54,7 +57,10 @@ public class SampleUI {
 	private static Text linuxCapInfosPath;
 	private static Text linuxTcpDumpPath;
 	private static Text linuxTsharkPath;
-
+	
+	private static Button sourceIpTopTalkersButton;
+	private static Button targetIpTopTalkersButton;
+	
 	/**
 	 * Launch the application.
 	 * @param args
@@ -151,6 +157,24 @@ public class SampleUI {
 		lblSelectSourceFile.setText("Select Source File:");
 		
 		sourceFilePath = new Text(composite, SWT.BORDER);
+		sourceFilePath.addModifyListener(new ModifyListener() {
+			public void modifyText(ModifyEvent arg0) {
+				String testValue = sourceFilePath.getText();
+				
+				if (!testValue.isEmpty()) {
+					File testFile = new File(testValue);
+					
+					if ((testFile.exists() && (!testFile.isDirectory()))) {
+						sourceIpTopTalkersButton.setEnabled(true);
+					} else {
+						sourceIpTopTalkersButton.setEnabled(false);
+					}
+					
+				} else {
+					sourceIpTopTalkersButton.setEnabled(false);
+				}
+			}
+		});
 		sourceFilePath.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
 		
 		Button sourceFileBrowseButton = new Button(composite, SWT.NONE);
@@ -181,6 +205,24 @@ public class SampleUI {
 		lblSelectTargetFile.setText("Select Target File:");
 		
 		targetFilePath = new Text(composite, SWT.BORDER);
+		targetFilePath.addModifyListener(new ModifyListener() {
+			public void modifyText(ModifyEvent arg0) {
+				String testValue = targetFilePath.getText();
+				
+				if (!testValue.isEmpty()) {
+					File testFile = new File(testValue);
+					
+					if ((testFile.exists() && (!testFile.isDirectory()))) {
+						targetIpTopTalkersButton.setEnabled(true);
+					} else {
+						targetIpTopTalkersButton.setEnabled(false);
+					}
+					
+				} else {
+					targetIpTopTalkersButton.setEnabled(false);
+				}
+			}
+		});
 		targetFilePath.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
 		
 		Button targetFileBrowseButton = new Button(composite, SWT.NONE);
@@ -236,9 +278,22 @@ public class SampleUI {
 		sourceVictimIp = new Text(composite, SWT.BORDER);
 		sourceVictimIp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
 		
-		Button btnTopTalkers = new Button(composite, SWT.NONE);
-		btnTopTalkers.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 1, 1));
-		btnTopTalkers.setText("Top Talkers");
+		sourceIpTopTalkersButton = new Button(composite, SWT.NONE);
+		sourceIpTopTalkersButton.setEnabled(false);
+		sourceIpTopTalkersButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				// ok... here's where we start to do something.
+				List<IpCountData> topTalkers = projector.getFileTopTalkers(sourceFilePath.getText(), 10);
+				
+	            logger.info("Top Talkers for source file: ");
+	            for (IpCountData entry : topTalkers) {
+	            	logger.info(entry.toString());
+	            }				
+			}
+		});
+		sourceIpTopTalkersButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 1, 1));
+		sourceIpTopTalkersButton.setText("Top Talkers");
 		
 		Label lblTargetVictimIp = new Label(composite, SWT.NONE);
 		lblTargetVictimIp.setText("Target Victim IP:");
@@ -246,9 +301,21 @@ public class SampleUI {
 		targetVictimIp = new Text(composite, SWT.BORDER);
 		targetVictimIp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
 		
-		Button btnTopTalkers_1 = new Button(composite, SWT.NONE);
-		btnTopTalkers_1.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 1, 1));
-		btnTopTalkers_1.setText("Top Talkers");
+		targetIpTopTalkersButton = new Button(composite, SWT.NONE);
+		targetIpTopTalkersButton.setEnabled(false);
+		targetIpTopTalkersButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				List<IpCountData> topTalkers = projector.getFileTopTalkers(targetFilePath.getText(), 10);
+				
+	            logger.info("Top Talkers for source file: ");
+	            for (IpCountData entry : topTalkers) {
+	            	logger.info(entry.toString());
+	            }			
+            }
+		});
+		targetIpTopTalkersButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 1, 1));
+		targetIpTopTalkersButton.setText("Top Talkers");
 		new Label(composite, SWT.NONE);
 		
 		Button validateButton = new Button(composite, SWT.NONE);

@@ -43,5 +43,6 @@ public class CapInfosProcessor implements Callable<List<String>> {
 
 	public void stop() {
 		p.destroy();
-	}	
+	}
+		
 }
